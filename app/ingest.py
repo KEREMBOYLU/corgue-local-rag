@@ -1,37 +1,11 @@
+import argparse
 from pathlib import Path
 import sqlite3
-from pypdf import PdfReader
+
+from pdf_utils import chunk_text, read_pdf_text, select_pdf_path
 
 
 DB_PATH = Path("rag.db")
-PDF_PATH = Path("data/documents/data_types.pdf")
-
-
-def read_pdf_text(pdf_path: Path) -> str:
-    reader = PdfReader(str(pdf_path))
-    pages_text = []
-
-    for page_number, page in enumerate(reader.pages, start=1):
-        text = page.extract_text() or ""
-        pages_text.append(f"\n--- Page {page_number} ---\n{text}")
-
-    return "\n".join(pages_text)
-
-
-def chunk_text(text: str, chunk_size: int = 900, overlap: int = 150) -> list[str]:
-    chunks = []
-    start = 0
-
-    while start < len(text):
-        end = start + chunk_size
-        chunk = text[start:end].strip()
-
-        if chunk:
-            chunks.append(chunk)
-
-        start = end - overlap
-
-    return chunks
 
 
 def create_database():
@@ -78,13 +52,29 @@ def save_chunks(source: str, chunks: list[str]):
     conn.close()
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Bir PDF'i okuyup chunk'larını yerel RAG veritabanına kaydeder."
+    )
+    parser.add_argument(
+        "pdf",
+        nargs="?",
+        help="İşlenecek PDF'in yolu. Verilmezse interaktif olarak sorulur.",
+    )
+    return parser.parse_args()
+
+
 def main():
-    if not PDF_PATH.exists():
-        print(f"PDF bulunamadı: {PDF_PATH}")
+    args = parse_args()
+
+    try:
+        pdf_path = select_pdf_path(args.pdf)
+    except ValueError as error:
+        print(error)
         return
 
     print("PDF okunuyor...")
-    text = read_pdf_text(PDF_PATH)
+    text = read_pdf_text(pdf_path)
 
     print("Metin chunk'lara bölünüyor...")
     chunks = chunk_text(text)
@@ -96,10 +86,10 @@ def main():
     clear_old_chunks()
 
     print("Yeni chunk'lar kaydediliyor...")
-    save_chunks(PDF_PATH.name, chunks)
+    save_chunks(pdf_path.name, chunks)
 
     print("\nIngestion tamamlandı.")
-    print(f"Kaynak PDF: {PDF_PATH.name}")
+    print(f"Kaynak PDF: {pdf_path.name}")
     print(f"Toplam karakter: {len(text)}")
     print(f"Kaydedilen chunk sayısı: {len(chunks)}")
     print(f"Database: {DB_PATH}")

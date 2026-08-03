@@ -8,6 +8,7 @@ from foundry_local_sdk import Configuration, FoundryLocalManager
 
 DB_PATH = Path("rag.db")
 EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"
+MIN_SIMILARITY_SCORE = 0.35
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -73,7 +74,11 @@ def get_query_embedding(query: str):
     return query_embedding
 
 
-def retrieve_top_chunks(query: str, top_k: int = 3):
+def retrieve_top_chunks(
+    query: str,
+    top_k: int = 3,
+    min_score: float = MIN_SIMILARITY_SCORE,
+):
     chunks = load_chunks_with_embeddings()
 
     if not chunks:
@@ -97,7 +102,11 @@ def retrieve_top_chunks(query: str, top_k: int = 3):
 
     scored_chunks.sort(key=lambda item: item["score"], reverse=True)
 
-    return scored_chunks[:top_k]
+    relevant_chunks = [
+        chunk for chunk in scored_chunks if chunk["score"] >= min_score
+    ]
+
+    return relevant_chunks[:top_k]
 
 
 def main():
@@ -106,6 +115,12 @@ def main():
     print(f"Soru: {query}\n")
 
     results = retrieve_top_chunks(query, top_k=3)
+
+    if not results:
+        print(
+            f"\n{MIN_SIMILARITY_SCORE:.2f} eşiğini geçen ilgili bir chunk bulunamadı."
+        )
+        return
 
     print("\nEn alakalı chunk'lar:\n")
 

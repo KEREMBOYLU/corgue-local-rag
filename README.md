@@ -6,11 +6,12 @@ The current project is intended as a learning prototype. It runs inference local
 
 ## How the RAG pipeline works
 
-1. `app/ingest.py` reads a PDF with `pypdf` and splits the extracted text into overlapping character-based chunks.
+1. `app/ingest.py` reads a user-selected PDF with `pypdf` and splits the extracted text into overlapping character-based chunks.
 2. The chunks are stored in a local SQLite database (`rag.db`).
 3. `app/embed_chunks.py` uses the Foundry Local `qwen3-embedding-0.6b` model to generate an embedding for each chunk. Embeddings are serialized as JSON in SQLite.
 4. `app/retrieve.py`, `app/rag_chat.py`, and `app/rag_cli.py` embed a question and rank stored chunks using cosine similarity calculated with NumPy.
-5. The RAG scripts place the best matching chunk in the prompt for the Foundry Local `qwen2.5-1.5b` chat model, which streams an answer to the terminal.
+5. Results below the current `0.35` similarity threshold are rejected so unrelated questions are not sent to the chat model with irrelevant context.
+6. The RAG scripts place the best matching accepted chunk in the prompt for the Foundry Local `qwen2.5-1.5b` chat model, which streams an answer to the terminal.
 
 The current retrieval implementation loads all embedded chunks into memory and performs a linear similarity scan. It is suitable for a small local corpus, not a large production index.
 
@@ -52,27 +53,39 @@ Run all commands below from the repository root because the current scripts use 
 
 ## Add a source document
 
-PDF source material is intentionally not tracked. Place a PDF that you own or have permission to use at:
+PDF source material is intentionally not tracked. Keep PDFs that you own or have permission to use anywhere outside the repository, then pass the selected file to the ingestion command.
 
-```text
-data/documents/data_types.pdf
+You can provide its path directly:
+
+```bash
+python app/ingest.py "/path/to/your/document.pdf"
 ```
 
-The filename is currently hard-coded in `app/ingest.py`, `app/read_pdf.py`, and `app/chunk_pdf.py`. Rename your document to `data_types.pdf` or update those constants locally. Do not publish private, copyrighted, or course material without permission.
-
-## Ingest the PDF
+Or run the command without an argument and paste the PDF path when prompted:
 
 ```bash
 python app/ingest.py
 ```
 
-This creates `rag.db`, clears existing rows from the `chunks` table, and inserts chunks from the configured PDF. The current ingestion workflow handles one configured PDF at a time.
+```text
+PDF dosyasının yolunu girin: /path/to/your/document.pdf
+```
+
+Do not publish private, copyrighted, or course material without permission. The empty `data/documents/` directory remains only as an optional local workspace placeholder.
+
+## Ingest the PDF
+
+```bash
+python app/ingest.py "/path/to/your/document.pdf"
+```
+
+This creates `rag.db`, clears existing rows from the `chunks` table, and inserts chunks from the selected PDF. The current ingestion workflow handles one selected PDF at a time.
 
 Optional inspection scripts show extracted text or example chunks without writing to the database:
 
 ```bash
-python app/read_pdf.py
-python app/chunk_pdf.py
+python app/read_pdf.py "/path/to/your/document.pdf"
+python app/chunk_pdf.py "/path/to/your/document.pdf"
 ```
 
 ## Generate embeddings
@@ -93,7 +106,7 @@ Run the retrieval demonstration with its current built-in query:
 python app/retrieve.py
 ```
 
-It prints the three chunks with the highest cosine-similarity scores. The query is currently defined in `app/retrieve.py`.
+It prints up to three chunks with the highest cosine-similarity scores that also meet the relevance threshold. The query is currently defined in `app/retrieve.py`.
 
 ## Run a single RAG question
 
@@ -131,6 +144,7 @@ local-rag-assistant/
 │   ├── embed_chunks.py            # Generate and store chunk embeddings
 │   ├── ingest.py                  # Extract, chunk, and store the configured PDF
 │   ├── inspect_foundry.py         # Foundry Local SDK inspection utility
+│   ├── pdf_utils.py               # PDF selection, extraction, and chunking helpers
 │   ├── rag_chat.py                # Single-question end-to-end RAG demo
 │   ├── rag_cli.py                 # Interactive RAG command-line application
 │   ├── read_pdf.py                # PDF extraction diagnostic
@@ -149,8 +163,8 @@ Generated and machine-local files such as `.venv/`, `rag.db`, PDFs, Python cache
 ## Current status and limitations
 
 - Functional prototype composed of standalone scripts.
-- PDF path, demonstration questions, model aliases, chunk size, overlap, and retrieval count are constants in the scripts rather than CLI options.
-- Ingestion replaces all existing chunks and currently targets one PDF.
+- Demonstration questions, model aliases, chunk size, overlap, retrieval threshold, and retrieval count are constants in the scripts rather than configuration options.
+- Ingestion accepts a PDF path or prompts for one, but replaces all existing chunks and currently processes one PDF at a time.
 - Chunking uses character boundaries and may split sentences or page markers.
 - Embeddings are stored as JSON text, and retrieval performs an in-memory linear scan.
 - Retrieval currently supplies one top-ranked chunk to the chat model in the RAG flows.

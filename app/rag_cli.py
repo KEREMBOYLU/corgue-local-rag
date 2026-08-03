@@ -10,6 +10,7 @@ DB_PATH = Path("rag.db")
 
 EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"
 CHAT_MODEL_ALIAS = "qwen2.5-1.5b"
+MIN_SIMILARITY_SCORE = 0.35
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -95,7 +96,13 @@ def get_query_embedding(embedding_client, query: str):
     return response.data[0].embedding
 
 
-def retrieve_top_chunks(chunks, embedding_client, query: str, top_k: int = 1):
+def retrieve_top_chunks(
+    chunks,
+    embedding_client,
+    query: str,
+    top_k: int = 1,
+    min_score: float = MIN_SIMILARITY_SCORE,
+):
     query_embedding = get_query_embedding(embedding_client, query)
 
     scored_chunks = []
@@ -110,7 +117,11 @@ def retrieve_top_chunks(chunks, embedding_client, query: str, top_k: int = 1):
 
     scored_chunks.sort(key=lambda item: item["score"], reverse=True)
 
-    return scored_chunks[:top_k]
+    relevant_chunks = [
+        chunk for chunk in scored_chunks if chunk["score"] >= min_score
+    ]
+
+    return relevant_chunks[:top_k]
 
 
 def build_context(chunks):
@@ -134,7 +145,9 @@ def answer_question(chunks, embedding_client, chat_client, question: str):
     )
 
     if not top_chunks:
-        return "Database içinde kullanılabilir context bulunamadı.", []
+        message = "Bu sorunun cevabını belgelerde bulamadım."
+        print(message)
+        return message, []
 
     context = build_context(top_chunks)
 
@@ -227,12 +240,13 @@ def main():
                 question=question
             )
 
-            print("\nKullanılan kaynak chunk'lar:")
+            if used_chunks:
+                print("\nKullanılan kaynak chunk'lar:")
 
-            for chunk in used_chunks:
-                print(
-                    f"- {chunk['source']} | chunk {chunk['chunk_index']} | score {chunk['score']:.4f}"
-                )
+                for chunk in used_chunks:
+                    print(
+                        f"- {chunk['source']} | chunk {chunk['chunk_index']} | score {chunk['score']:.4f}"
+                    )
 
             print("\n" + "=" * 80 + "\n")
 

@@ -10,6 +10,7 @@ DB_PATH = Path("rag.db")
 
 EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"
 CHAT_MODEL_ALIAS = "qwen2.5-1.5b"
+MIN_SIMILARITY_SCORE = 0.35
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -83,7 +84,12 @@ def get_query_embedding(manager, query: str):
     return query_embedding
 
 
-def retrieve_top_chunks(manager, query: str, top_k: int = 1):
+def retrieve_top_chunks(
+    manager,
+    query: str,
+    top_k: int = 1,
+    min_score: float = MIN_SIMILARITY_SCORE,
+):
     chunks = load_chunks_with_embeddings()
 
     if not chunks:
@@ -106,7 +112,11 @@ def retrieve_top_chunks(manager, query: str, top_k: int = 1):
 
     scored_chunks.sort(key=lambda item: item["score"], reverse=True)
 
-    return scored_chunks[:top_k]
+    relevant_chunks = [
+        chunk for chunk in scored_chunks if chunk["score"] >= min_score
+    ]
+
+    return relevant_chunks[:top_k]
 
 
 def build_context(chunks):
@@ -127,7 +137,9 @@ def answer_question(manager, question: str):
     top_chunks = retrieve_top_chunks(manager, question, top_k=1)
 
     if not top_chunks:
-        return "Database içinde kullanılabilir context bulunamadı.", []
+        message = "Bu sorunun cevabını belgelerde bulamadım."
+        print(message)
+        return message, []
 
     context = build_context(top_chunks)
 
@@ -196,12 +208,13 @@ def main():
 
     answer, chunks = answer_question(manager, question)
 
-    print("\nKullanılan kaynak chunk'lar:\n")
+    if chunks:
+        print("\nKullanılan kaynak chunk'lar:\n")
 
-    for chunk in chunks:
-        print(
-            f"- {chunk['source']} | chunk {chunk['chunk_index']} | score {chunk['score']:.4f}"
-        )
+        for chunk in chunks:
+            print(
+                f"- {chunk['source']} | chunk {chunk['chunk_index']} | score {chunk['score']:.4f}"
+            )
 
 
 if __name__ == "__main__":

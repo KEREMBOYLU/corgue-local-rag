@@ -1,23 +1,21 @@
-from pathlib import Path
-from pypdf import PdfReader
+import argparse
+
+from pdf_utils import read_pdf_text, select_pdf_path
 
 
-def read_pdf_text(pdf_path: Path) -> str:
-    reader = PdfReader(str(pdf_path))
-    pages_text = []
-
-    for page_number, page in enumerate(reader.pages, start=1):
-        text = page.extract_text() or ""
-        pages_text.append(f"\n--- Page {page_number} ---\n{text}")
-
-    return "\n".join(pages_text)
+def parse_args():
+    parser = argparse.ArgumentParser(description="Seçilen PDF'in metnini kontrol eder.")
+    parser.add_argument("pdf", nargs="?", help="PDF yolu. Verilmezse interaktif olarak sorulur.")
+    return parser.parse_args()
 
 
 def main():
-    pdf_path = Path("data/documents/data_types.pdf")
+    args = parse_args()
 
-    if not pdf_path.exists():
-        print(f"PDF bulunamadı: {pdf_path}")
+    try:
+        pdf_path = select_pdf_path(args.pdf)
+    except ValueError as error:
+        print(error)
         return
 
     text = read_pdf_text(pdf_path)

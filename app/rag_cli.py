@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 import sqlite3
 import numpy as np
+from settings import get_system_prompt
 
 from foundry_local_sdk import Configuration, FoundryLocalManager
 
@@ -25,15 +26,26 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     return float(np.dot(vec_a, vec_b) / denominator)
 
 
-def load_chunks_with_embeddings():
+def load_chunks_with_embeddings(project_id: int | None = None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT id, source, chunk_index, chunk_text, embedding
-        FROM chunks
-        WHERE embedding IS NOT NULL AND embedding != ''
-    """)
+    if project_id is not None:
+        cursor.execute("""
+            SELECT c.id, c.document_id, COALESCE(d.filename, c.source) AS source, c.chunk_index, c.chunk_text, c.embedding
+            FROM chunks c
+            JOIN documents d ON c.document_id = d.id
+            WHERE c.embedding IS NOT NULL AND c.embedding != '' AND d.project_id = ?
+            ORDER BY c.id
+        """, (project_id,))
+    else:
+        cursor.execute("""
+            SELECT c.id, c.document_id, COALESCE(d.filename, c.source) AS source, c.chunk_index, c.chunk_text, c.embedding
+            FROM chunks c
+            LEFT JOIN documents d ON c.document_id = d.id
+            WHERE c.embedding IS NOT NULL AND c.embedding != ''
+            ORDER BY c.id
+        """)
 
     rows = cursor.fetchall()
     conn.close()
@@ -41,11 +53,15 @@ def load_chunks_with_embeddings():
     chunks = []
 
     for row in rows:
-        chunk_id, source, chunk_index, chunk_text, embedding_json = row
-        embedding = json.loads(embedding_json)
+        chunk_id, doc_id, source, chunk_index, chunk_text, embedding_json = row
+        try:
+            embedding = json.loads(embedding_json)
+        except Exception:
+            continue
 
         chunks.append({
             "id": chunk_id,
+            "document_id": doc_id,
             "source": source,
             "chunk_index": chunk_index,
             "chunk_text": chunk_text,
@@ -56,38 +72,34 @@ def load_chunks_with_embeddings():
 
 
 def get_foundry_manager():
-    config = Configuration(app_name="rag_cli")
-    FoundryLocalManager.initialize(config)
+    if FoundryLocalManager.instance is None:
+        config = Configuration(app_name="rag_cli")
+        FoundryLocalManager.initialize(config)
 
     manager = FoundryLocalManager.instance
-
-    print("Execution providers hazırlanıyor...")
     manager.download_and_register_eps()
-
     return manager
 
 
 def load_embedding_model(manager):
-    print("Embedding modeli yükleniyor...")
-
     model = manager.catalog.get_model(EMBEDDING_MODEL_ALIAS)
+    cached_variant = next((variant for variant in model.variants if variant.is_cached), None)
+    if cached_variant is not None:
+        model.select_variant(cached_variant)
     model.download()
     model.load()
-
     embedding_client = model.get_embedding_client()
-
     return model, embedding_client
 
 
-def load_chat_model(manager):
-    print("Chat modeli yükleniyor...")
-
-    model = manager.catalog.get_model(CHAT_MODEL_ALIAS)
+def load_chat_model(manager, model_alias: str = CHAT_MODEL_ALIAS):
+    model = manager.catalog.get_model(model_alias)
+    cached_variant = next((variant for variant in model.variants if variant.is_cached), None)
+    if cached_variant is not None:
+        model.select_variant(cached_variant)
     model.download()
     model.load()
-
     chat_client = model.get_chat_client()
-
     return model, chat_client
 
 
@@ -96,13 +108,43 @@ def get_query_embedding(embedding_client, query: str):
     return response.data[0].embedding
 
 
+def build_retrieval_query(question: str, history: list[dict]) -> str:
+    """Keep short follow-up searches anchored to the previous user topic."""
+    clean_question = (question or "").strip()
+    if not history or len(clean_question.split()) > 8:
+        return clean_question
+
+    previous_user_questions = [
+        (message.get("content") or "").strip()
+        for message in history
+        if message.get("role") == "user" and (message.get("content") or "").strip()
+    ]
+    if not previous_user_questions:
+        return clean_question
+    return f"{previous_user_questions[-1]} {clean_question}"
+
+
+def is_document_overview_request(question: str) -> bool:
+    """Recognize generic starter prompts that should search broadly."""
+    clean = " ".join((question or "").lower().split())
+    markers = (
+        "bu belgeleri", "bu belgeyi", "belgeleri özetle", "belgeyi özetle",
+        "dokümanları özetle", "dokümanı özetle", "kaynakları özetle",
+        "en önemli kavramlar", "önemli kavramlar",
+    )
+    return any(marker in clean for marker in markers)
+
+
 def retrieve_top_chunks(
     chunks,
     embedding_client,
     query: str,
-    top_k: int = 1,
+    top_k: int = 3,
     min_score: float = MIN_SIMILARITY_SCORE,
 ):
+    if not chunks:
+        return []
+
     query_embedding = get_query_embedding(embedding_client, query)
 
     scored_chunks = []
@@ -129,11 +171,52 @@ def build_context(chunks):
 
     for chunk in chunks:
         context_parts.append(
-            f"[Source: {chunk['source']} | Chunk: {chunk['chunk_index']} | Score: {chunk['score']:.4f}]\n"
+            f"--- [Belge: {chunk['source']} | Parça: #{chunk['chunk_index']} | Benzerlik Skoru: {chunk['score']:.4f}] ---\n"
             f"{chunk['chunk_text']}"
         )
 
-    return "\n\n---\n\n".join(context_parts)
+    return "\n\n".join(context_parts)
+
+
+def build_messages_with_context(
+    system_prompt: str,
+    context: str,
+    history: list[dict],
+    current_question: str,
+    max_history_turns: int = 6,
+) -> list[dict]:
+    """
+    Constructs a chat context window with system prompt, sliding window conversation history,
+    retrieved RAG context, and the new user question.
+    """
+    messages = [{"role": "system", "content": system_prompt}]
+
+    # Filter out empty or placeholder messages from history
+    valid_history = []
+    for msg in history:
+        content = (msg.get("content") or "").strip()
+        role = msg.get("role")
+        if content and role in ("user", "assistant") and content != "Yanıt hazırlanıyor…":
+            valid_history.append({"role": role, "content": content})
+
+    # Take last N turns for sliding window
+    trimmed_history = valid_history[-max_history_turns:] if max_history_turns > 0 else []
+
+    # Add prior conversation turns
+    for msg in trimmed_history:
+        messages.append(msg)
+
+    # Add the current turn with RAG context
+    if context:
+        user_prompt = (
+            f"Relevant Context from Documents:\n{context}\n\n"
+            f"User Question:\n{current_question}"
+        )
+    else:
+        user_prompt = current_question
+
+    messages.append({"role": "user", "content": user_prompt})
+    return messages
 
 
 def answer_question(chunks, embedding_client, chat_client, question: str):
@@ -141,7 +224,7 @@ def answer_question(chunks, embedding_client, chat_client, question: str):
         chunks=chunks,
         embedding_client=embedding_client,
         query=question,
-        top_k=1
+        top_k=3,
     )
 
     if not top_chunks:
@@ -151,113 +234,56 @@ def answer_question(chunks, embedding_client, chat_client, question: str):
 
     context = build_context(top_chunks)
 
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are a strict local RAG study assistant. "
-                "You must answer only from the provided context. "
-                "Do not use outside knowledge. "
-                "When the question asks for a definition, first find the direct definition in the context. "
-                "A bullet with ':' often contains a direct definition. Prioritize that as the main definition. "
-                "Do not treat supporting details as the main definition. "
-                "Do not generalize beyond the context. "
-                "If the answer is not present in the context, say: I don't know based on the provided context."
-            )
-        },
-        {
-            "role": "user",
-            "content": (
-                f"Context:\n{context}\n\n"
-                f"Question:\n{question}\n\n"
-                "Answer using this exact format:\n"
-                "Definition: <direct answer from the context>\n"
-                "Details: <supporting details from the context only>\n"
-                "Source: <source document name, chunk index, and score>"
-            )
-        }
-    ]
+    messages = build_messages_with_context(
+        system_prompt=get_system_prompt(),
+        context=context,
+        history=[],
+        current_question=question,
+    )
+
+    print("\nAssistant cevabı:")
+    print("-" * 50)
 
     answer_parts = []
-
     for chunk in chat_client.complete_streaming_chat(messages):
         if not chunk.choices:
             continue
+        delta = chunk.choices[0].delta.content
+        if delta:
+            print(delta, end="", flush=True)
+            answer_parts.append(delta)
 
-        content = chunk.choices[0].delta.content
-
-        if content:
-            print(content, end="", flush=True)
-            answer_parts.append(content)
-
-    print()
+    print("\n" + "-" * 50)
+    print("\nKullanılan Kaynaklar:")
+    for c in top_chunks:
+        print(f"- {c['source']} (Parça #{c['chunk_index']}, Skor: {c['score']:.4f})")
 
     return "".join(answer_parts), top_chunks
 
 
 def main():
-    if not DB_PATH.exists():
-        print(f"Database bulunamadı: {DB_PATH}")
-        return
+    manager = get_foundry_manager()
+    _, embedding_client = load_embedding_model(manager)
+    _, chat_client = load_chat_model(manager)
 
     chunks = load_chunks_with_embeddings()
-
     if not chunks:
-        print("Embedding içeren chunk bulunamadı. Önce embed_chunks.py çalıştır.")
+        print("Kayıtlı ve embedding üretilmiş chunk bulunamadı.")
         return
 
-    print(f"Yüklenen chunk sayısı: {len(chunks)}")
+    print(f"Hazır! Toplam {len(chunks)} chunk yüklendi.")
+    print("Çıkmak için 'q' veya 'exit' yazın.\n")
 
-    manager = get_foundry_manager()
-
-    embedding_model = None
-    chat_model = None
-
-    try:
-        embedding_model, embedding_client = load_embedding_model(manager)
-        chat_model, chat_client = load_chat_model(manager)
-
-        print("\nLocal RAG Assistant hazır.")
-        print("Çıkmak için: exit / quit / q\n")
-
-        while True:
-            question = input("Soru: ").strip()
-
-            if question.lower() in ["exit", "quit", "q"]:
-                print("Program kapatılıyor...")
-                break
-
-            if not question:
-                print("Boş soru olmaz aga. Teknolojiye de biraz saygı.")
+    while True:
+        try:
+            q = input("\nSoru: ").strip()
+            if not q:
                 continue
-
-            print("\nAssistant cevabı:\n")
-
-            answer, used_chunks = answer_question(
-                chunks=chunks,
-                embedding_client=embedding_client,
-                chat_client=chat_client,
-                question=question
-            )
-
-            if used_chunks:
-                print("\nKullanılan kaynak chunk'lar:")
-
-                for chunk in used_chunks:
-                    print(
-                        f"- {chunk['source']} | chunk {chunk['chunk_index']} | score {chunk['score']:.4f}"
-                    )
-
-            print("\n" + "=" * 80 + "\n")
-
-    finally:
-        if embedding_model is not None:
-            print("Embedding modeli kapatılıyor...")
-            embedding_model.unload()
-
-        if chat_model is not None:
-            print("Chat modeli kapatılıyor...")
-            chat_model.unload()
+            if q.lower() in ("q", "exit", "quit"):
+                break
+            answer_question(chunks, embedding_client, chat_client, q)
+        except KeyboardInterrupt:
+            break
 
 
 if __name__ == "__main__":

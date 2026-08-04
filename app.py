@@ -1,4 +1,9 @@
 from foundry_local_sdk import Configuration, FoundryLocalManager
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent / "app"))
+from settings import get_system_prompt
 
 
 def main():
@@ -31,11 +36,7 @@ def main():
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are a helpful AI assistant. "
-                "Answer only using the provided context. "
-                "If the answer is not in the context, say you don't know."
-            )
+            "content": get_system_prompt()
         },
         {
             "role": "user",

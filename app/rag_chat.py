@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 import sqlite3
 import numpy as np
+from settings import get_system_prompt
 
 from foundry_local_sdk import Configuration, FoundryLocalManager
 
@@ -30,9 +31,11 @@ def load_chunks_with_embeddings():
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id, source, chunk_index, chunk_text, embedding
-        FROM chunks
-        WHERE embedding IS NOT NULL AND embedding != ''
+        SELECT c.id, c.document_id, COALESCE(d.filename, c.source) AS source, c.chunk_index, c.chunk_text, c.embedding
+        FROM chunks c
+        LEFT JOIN documents d ON c.document_id = d.id
+        WHERE c.embedding IS NOT NULL AND c.embedding != ''
+        ORDER BY c.id
     """)
 
     rows = cursor.fetchall()
@@ -41,11 +44,12 @@ def load_chunks_with_embeddings():
     chunks = []
 
     for row in rows:
-        chunk_id, source, chunk_index, chunk_text, embedding_json = row
+        chunk_id, doc_id, source, chunk_index, chunk_text, embedding_json = row
         embedding = json.loads(embedding_json)
 
         chunks.append({
             "id": chunk_id,
+            "document_id": doc_id,
             "source": source,
             "chunk_index": chunk_index,
             "chunk_text": chunk_text,
@@ -56,8 +60,9 @@ def load_chunks_with_embeddings():
 
 
 def get_foundry_manager():
-    config = Configuration(app_name="rag_chat")
-    FoundryLocalManager.initialize(config)
+    if FoundryLocalManager.instance is None:
+        config = Configuration(app_name="rag_chat")
+        FoundryLocalManager.initialize(config)
 
     manager = FoundryLocalManager.instance
 
@@ -154,16 +159,7 @@ def answer_question(manager, question: str):
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are a strict local RAG study assistant. "
-                "You must answer only from the provided context. "
-                "Do not use outside knowledge. "
-                "When the question asks for a definition, first find the direct definition in the context. "
-                "A bullet with ':' often contains a direct definition. Prioritize that as the main definition. "
-                "Do not treat supporting details as the main definition. "
-                "Do not generalize beyond the context. "
-                "If the answer is not present in the context, say: I don't know based on the provided context."
-            )
+            "content": get_system_prompt()
         },
         {
             "role": "user",

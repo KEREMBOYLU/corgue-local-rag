@@ -9,25 +9,17 @@ DB_PATH = Path("rag.db")
 EMBEDDING_MODEL_ALIAS = "qwen3-embedding-0.6b"
 
 
+from ingest import create_database
+
+
 def add_embedding_column_if_needed():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    create_database()
 
-    cursor.execute("PRAGMA table_info(chunks)")
-    columns = [row[1] for row in cursor.fetchall()]
-
-    if "embedding" not in columns:
-        print("embedding kolonu ekleniyor...")
-        cursor.execute("ALTER TABLE chunks ADD COLUMN embedding TEXT")
-    else:
-        print("embedding kolonu zaten var.")
-
-    conn.commit()
-    conn.close()
 
 
 def get_chunks_without_embeddings():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA busy_timeout = 30000")
     cursor = conn.cursor()
 
     cursor.execute("""
@@ -44,7 +36,8 @@ def get_chunks_without_embeddings():
 
 
 def save_embedding(chunk_id: int, embedding: list[float]):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.execute("PRAGMA busy_timeout = 30000")
     cursor = conn.cursor()
 
     embedding_json = json.dumps(embedding)
@@ -78,8 +71,9 @@ def main():
     print(f"Embedding üretilecek chunk sayısı: {len(chunks)}")
 
     print("Foundry Local başlatılıyor...")
-    config = Configuration(app_name="embed_chunks")
-    FoundryLocalManager.initialize(config)
+    if FoundryLocalManager.instance is None:
+        config = Configuration(app_name="embed_chunks")
+        FoundryLocalManager.initialize(config)
 
     manager = FoundryLocalManager.instance
 

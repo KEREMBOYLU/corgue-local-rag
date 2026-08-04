@@ -56,3 +56,15 @@ def chunk_text(text: str, chunk_size: int = 900, overlap: int = 150) -> list[str
         start = end - overlap
 
     return chunks
+
+
+def calculate_file_hash(pdf_path: Path) -> str:
+    import hashlib
+
+    sha256 = hashlib.sha256()
+    with open(pdf_path, "rb") as f:
+        for block in iter(lambda: f.read(65536), b""):
+            sha256.update(block)
+
+    return sha256.hexdigest()
+

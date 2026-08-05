@@ -1,0 +1,35 @@
+<div class="rag-inspector-container">
+    <h3 style="margin-top:0.4rem; margin-bottom:0.6rem; font-size:1.15rem; font-weight:600;">🔍 Prompt & RAG Context İnceleme</h3>
+    <p style="color: #64748b; font-size:0.88rem; margin-bottom:0.8rem;">Aşağıda modele gönderilen sistem talimatları, dökümanlardan çekilen dinamik parçalar ve kullanıcı sorusu yer almaktadır.</p>
+    
+    <div style="margin-bottom: 0.8rem;">
+        <span style="font-weight:600; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em; color:#4f46e5;">📋 Talimatlar (Instructions)</span>
+        <div class="rag-badge badge-instructions">
+            {{ instructions }}
+        </div>
+    </div>
+
+    <div style="margin-bottom: 0.8rem;">
+        <span style="font-weight:600; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em; color:#059669;">📚 Döküman Bağlamı (Context - {{ documents|length }} Parça)</span>
+        {% if documents %}
+            {% for doc in documents %}
+                <details class="doc-box" style="margin-top: 6px;">
+                    <summary style="cursor: pointer; font-weight: 500; padding: 4px 0;">
+                        <b>Parça {{ loop.index }}:</b> <span style="color:#0284c7;">{{ doc.source }}</span> <span style="font-size:0.8rem; color:#64748b;">(Parça #{{ doc.chunk_index }} · Skor: {{ "%.4f"|format(doc.score) }})</span>
+                        <span class="doc-short" style="display:inline; margin-left:6px; color:#475569; font-style:italic;">- {{ doc.chunk_text[:90] }}...</span>
+                    </summary>
+                    <div class="doc-full" style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(0,0,0,0.15); white-space: pre-wrap; font-size:0.92rem; line-height:1.55;">{{ doc.chunk_text }}</div>
+                </details>
+            {% endfor %}
+        {% else %}
+            <div style="padding: 10px; color:#64748b; font-style:italic; font-size:0.9rem;">Bu soru için eşiği geçen döküman parçası bulunamadı.</div>
+        {% endif %}
+    </div>
+
+    <div>
+        <span style="font-weight:600; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em; color:#e11d48;">❓ Kullanıcı Sorusu (Query)</span>
+        <div class="rag-badge badge-query">
+            {{ query }}
+        </div>
+    </div>
+</div>

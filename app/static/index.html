@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Local RAG</title>
+  <link rel="stylesheet" href="/static/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <header class="brand">
+        <span class="brand-mark"><i class="fa-solid fa-brain"></i></span>
+        <div><strong>Local RAG</strong><small>Offline knowledge assistant</small></div>
+      </header>
+      <button id="settings-btn" class="settings-nav-btn" type="button"><i class="fa-solid fa-gear"></i><span>Ayarlar</span></button>
+
+      <!-- Projeler (Projects) Collapsible Section -->
+      <section class="nav-section projects-section">
+        <div class="section-heading-row">
+          <div class="section-toggle-btn" id="projects-toggle" role="button" tabindex="0" title="Projeleri Daralt / Genişlet">
+            <span class="section-heading-title">Projeler</span>
+            <span class="chevron-icon" id="projects-chevron"><i class="fa-solid fa-chevron-down"></i></span>
+          </div>
+          <div class="heading-action-buttons">
+            <button id="projects-more-btn" title="Proje seçenekleri" class="icon-action-btn" type="button"><i class="fa-solid fa-ellipsis"></i></button>
+            <button id="add-project-btn" title="Yeni Proje Ekle" class="icon-action-btn" type="button"><i class="fa-solid fa-plus"></i></button>
+          </div>
+        </div>
+        <div id="project-tree-container" class="tree-container">
+          <div id="project-tree-list" class="project-tree-list"></div>
+        </div>
+      </section>
+
+      <!-- Sohbetler (Conversations) Collapsible Section -->
+      <section class="nav-section conversations-section">
+        <div class="section-heading-row">
+          <div class="section-toggle-btn" id="conv-toggle" role="button" tabindex="0" title="Sohbetleri Daralt / Genişlet">
+            <span class="section-heading-title">Sohbetler</span>
+            <span class="chevron-icon" id="conv-chevron"><i class="fa-solid fa-chevron-down"></i></span>
+          </div>
+          <div class="heading-action-buttons">
+            <button class="icon-action-btn" id="quick-new-conv-btn" title="Yeni Sohbet Başlat" type="button"><i class="fa-solid fa-plus"></i></button>
+          </div>
+        </div>
+        <div id="conv-tree-container" class="tree-container">
+          <div id="conversation-list" class="conversation-list"></div>
+        </div>
+      </section>
+    </aside>
+
+    <main class="chat-panel">
+      <header class="chat-header">
+        <div>
+          <h1 id="chat-title">Yeni Sohbet</h1>
+          <p id="chat-subtitle">Kaynaklarına dayalı yanıtlar</p>
+        </div>
+        <div class="header-actions">
+          <button id="rename-chat" title="Sohbeti yeniden adlandır"><i class="fa-regular fa-pen-to-square"></i></button>
+          <button id="delete-chat" title="Sohbeti sil"><i class="fa-regular fa-trash-can"></i></button>
+        </div>
+      </header>
+
+      <section id="messages" class="messages">
+        <div class="empty-state">
+          <span class="spark"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+          <h2>Belgelerinle konuşmaya başla</h2>
+          <p>Kaynaklarından özet çıkar, kavramları açıkla veya belirli bir bilgiyi bul.</p>
+          <div class="suggestions">
+            <button>Bu belgeleri kısaca özetle</button>
+          </div>
+        </div>
+      </section>
+
+      <footer class="chat-footer">
+        <form id="composer" class="composer">
+          <textarea id="question" rows="1" placeholder="Kaynakların hakkında sor…" aria-label="Mesaj"></textarea>
+          <div class="composer-row">
+            <div class="composer-left">
+              <button type="button" id="model-picker-btn" class="model-picker-btn" title="Model Değiştir">
+                <span id="selected-model-name">Qwen 2.5 1.5B</span>
+                <i class="fa-solid fa-chevron-up"></i>
+              </button>
+            </div>
+            <div class="composer-right">
+              <button class="send" id="send-btn" type="submit" aria-label="Gönder"><i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+          </div>
+        </form>
+        <p class="disclaimer">Yanıtlar yalnızca yerel belgelerinden üretilir.</p>
+      </footer>
+    </main>
+
+    <aside class="sources-panel">
+      <!-- Panel Tabs -->
+      <div class="panel-tabs">
+        <button type="button" class="panel-tab-btn active" data-tab="sources"><i class="fa-solid fa-book"></i> Belgeler</button>
+        <button type="button" class="panel-tab-btn" data-tab="inspector"><i class="fa-solid fa-code-compare"></i> Bağlam Penceresi</button>
+      </div>
+
+      <!-- Tab 1: Sources & Citations -->
+      <div id="tab-sources" class="tab-content active">
+        <header class="sources-header">
+          <h2 id="sources-title">Belgeler (0 Belge)</h2>
+        </header>
+        
+        <label class="source-search">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="search" placeholder="Kaynaklarda ara…">
+        </label>
+        
+        <div id="source-list" class="source-list"></div>
+        
+        <button class="upload-card" type="button" data-upload-trigger>
+          <span><i class="fa-solid fa-file-arrow-up"></i></span>
+          <strong>PDF kaynağı ekle</strong>
+          <small>Dosyayı seç veya buraya sürükle</small>
+        </button>
+
+        <section class="answer-sources">
+          <p class="eyebrow">Bu yanıtta kullanılanlar</p>
+          <div class="source-empty">
+            <span><i class="fa-regular fa-lightbulb"></i></span>
+            <p>Bir soru sorduğunda kullanılan alıntılar burada görünecek.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- Tab 2: Context Window Inspector (Bağlam Penceresi) -->
+      <div id="tab-inspector" class="tab-content">
+        <div class="inspector-header">
+          <h2>Model Bağlam Penceresi</h2>
+          <p>Modele gönderilen canlı sistem istemi, döküman parçaları ve token boyutu</p>
+        </div>
+
+        <div class="context-stats-card">
+          <div class="stat-row">
+            <span><i class="fa-solid fa-microchip"></i> Aktif Model</span>
+            <strong id="inspector-model-name">Qwen 2.5 1.5B</strong>
+          </div>
+          <div class="stat-row">
+            <span><i class="fa-solid fa-layer-group"></i> Bağlam Kullanımı</span>
+            <strong id="inspector-token-count">0 / 32,768 Token</strong>
+          </div>
+          <div class="context-meter">
+            <div id="context-meter-bar" class="context-meter-bar" style="width: 2%;"></div>
+          </div>
+        </div>
+
+        <div class="inspector-section">
+          <div class="inspector-section-title"><i class="fa-solid fa-terminal"></i> Sistem İstemi (System Prompt)</div>
+          <pre id="inspector-system-prompt" class="inspector-code-box">System prompt güvenlik nedeniyle burada gösterilmez. Değiştirmek için Ayarlar ekranını kullanın.</pre>
+        </div>
+
+        <div class="inspector-section">
+          <div class="inspector-section-title"><i class="fa-solid fa-puzzle-piece"></i> Bağlama Enjekte Edilen Parçalar</div>
+          <div id="inspector-chunks-list" class="inspector-chunks-list">
+            <div class="source-empty"><span><i class="fa-regular fa-lightbulb"></i></span><p>Henüz bir soru sorulmadı.</p></div>
+          </div>
+        </div>
+
+        <div class="inspector-section">
+          <div class="inspector-section-title"><i class="fa-solid fa-clock-rotate-left"></i> Sohbet Geçmişi Bağlamı</div>
+          <div id="inspector-history-info" class="inspector-history-box">Son 6 sohbet turu hafızada tutularak modele aktarılır.</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <input id="file-input" type="file" accept="application/pdf,.pdf" multiple hidden>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Project Management Modal -->
+  <dialog id="project-dialog" class="dialog">
+    <form method="dialog" class="dialog-card">
+      <header>
+        <div>
+          <h2>Projeler ve Çalışma Alanları</h2>
+          <p>Belgelerini ve sohbetlerini projelere göre ayır.</p>
+        </div>
+        <button value="cancel" aria-label="Kapat"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <div id="project-list" class="project-list"></div>
+      <div class="create-project">
+        <p class="eyebrow">Yeni Proje Oluştur</p>
+        <input id="new-project-name" placeholder="Örn. ReminDrink Web, Hukuk Notları">
+        <textarea id="new-project-description" rows="2" placeholder="Kısa açıklama (isteğe bağlı)"></textarea>
+        <button id="create-project" type="button"><i class="fa-solid fa-plus"></i> Projeyi Oluştur</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Project Context Menu Popup -->
+  <div id="project-menu-popup" class="context-popup" hidden>
+    <button type="button" id="menu-new-project"><i class="fa-solid fa-plus"></i> Yeni Proje</button>
+    <button type="button" id="menu-manage-projects"><i class="fa-solid fa-gear"></i> Tüm Projeleri Yönet</button>
+    <button type="button" id="menu-delete-active-project" class="danger"><i class="fa-regular fa-trash-can"></i> Aktif Projeyi Sil</button>
+  </div>
+
+  <!-- Model Selector Popup (Dropup) -->
+  <div id="model-menu-popup" class="model-popup" hidden>
+    <div class="model-popup-header">
+      <span><i class="fa-solid fa-microchip"></i> Yerel LLM Modelleri</span>
+      <small>Foundry Local</small>
+    </div>
+    <div id="model-options-list" class="model-options-list"></div>
+    <button type="button" id="other-models-btn" class="model-popup-other"><i class="fa-solid fa-layer-group"></i> Diğer Modeller</button>
+  </div>
+
+  <dialog id="settings-dialog" class="dialog settings-dialog">
+    <form method="dialog" class="dialog-card" id="settings-form">
+      <header>
+        <div><h2>Uygulama Ayarları</h2><p>LLM’in her istekte kullanacağı system prompt’u yönetin.</p></div>
+        <button value="cancel" aria-label="Kapat"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+      <nav class="settings-tabs" aria-label="Ayar sekmeleri">
+        <button type="button" class="settings-tab active" data-settings-tab="general"><i class="fa-solid fa-sliders"></i> Genel</button>
+        <button type="button" class="settings-tab" data-settings-tab="models"><i class="fa-solid fa-microchip"></i> Modeller</button>
+      </nav>
+      <section id="settings-general-panel" class="settings-tab-panel active">
+        <label class="settings-label" for="system-prompt-input">System Prompt</label>
+        <textarea id="system-prompt-input" class="settings-textarea" rows="14" required></textarea>
+        <small id="system-prompt-source" class="settings-help"></small>
+        <div class="settings-actions">
+          <button id="reset-system-prompt" type="button" class="secondary-action">Varsayılana dön</button>
+          <button id="save-system-prompt" type="submit" class="primary-action">Kaydet</button>
+        </div>
+      </section>
+      <section id="settings-models-panel" class="settings-tab-panel">
+        <div class="settings-models-heading">
+          <div><h3>Modeller</h3><p>Foundry Local kataloğundaki sohbet modelleri</p><small>Embedding modeli yalnızca belge ekleme sırasında çalışır.</small></div>
+          <i class="fa-solid fa-microchip"></i>
+        </div>
+        <div id="catalog-model-list" class="catalog-model-list"><small>Katalog yükleniyor…</small></div>
+      </section>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

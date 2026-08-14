@@ -8,8 +8,9 @@ __pycache__/
 .coverage
 htmlcov/
 
-# Virtual environments
-.venv/
+# Virtual environments (directories, symlinks, and local backups)
+.venv
+.venv-*/
 venv/
 env/
 

@@ -1,8 +1,8 @@
 # Local RAG Assistant
 
-A local, script-based retrieval-augmented generation (RAG) prototype built with Python, Microsoft Foundry Local, SQLite, and PDF documents. It extracts and chunks a PDF, generates local embeddings, retrieves relevant chunks with cosine similarity, and sends the retrieved context to a local chat model.
+A local retrieval-augmented generation (RAG) application built with Python, FastAPI, vanilla HTML/CSS/JavaScript, Microsoft Foundry Local, SQLite, and PDF documents. It extracts and chunks PDFs, generates local embeddings, retrieves relevant chunks with cosine similarity, and streams source-grounded answers from a local chat model.
 
-The current project is intended as a learning prototype. It runs inference locally through Foundry Local and does not implement a web interface or hosted service.
+The application and its data remain on the local machine. FastAPI serves the browser interface on `127.0.0.1`; no hosted service is required.
 
 ## How the RAG pipeline works
 
@@ -73,13 +73,21 @@ PDF dosyasının yolunu girin: /path/to/your/document.pdf
 
 Do not publish private, copyrighted, or course material without permission. The empty `data/documents/` directory remains only as an optional local workspace placeholder.
 
-## Ingest the PDF
+## Ingest PDFs into collection
 
 ```bash
 python app/ingest.py "/path/to/your/document.pdf"
 ```
 
-This creates `rag.db`, clears existing rows from the `chunks` table, and inserts chunks from the selected PDF. The current ingestion workflow handles one selected PDF at a time.
+This creates `rag.db` (if it does not exist) and adds chunks from the selected PDF into the `documents` and `chunks` tables. Existing documents are preserved, allowing a multi-document collection. Duplicate PDF indexing is prevented via SHA-256 file hashing.
+
+You can also list or manage documents via CLI:
+
+```bash
+python app/ingest.py --list               # List all indexed documents in the collection
+python app/ingest.py --delete <DOC_ID>    # Delete a document and its chunks from the collection
+python app/ingest.py --clear              # Reset the entire database
+```
 
 Optional inspection scripts show extracted text or example chunks without writing to the database:
 
@@ -126,6 +134,24 @@ python app/rag_cli.py
 
 Enter questions at the `Soru:` prompt. Enter `exit`, `quit`, or `q` to unload the models and stop the program.
 
+## Run the local web interface
+
+Start the local browser interface from the repository root:
+
+```bash
+python run_local_rag.py
+```
+
+Then open [http://127.0.0.1:7860](http://127.0.0.1:7860). The interface lets you:
+
+- upload a PDF from your computer;
+- extract, chunk, embed, and store the selected document in SQLite;
+- ask free-form questions without hardcoded prompts;
+- see the retrieved source filename, chunk index, and similarity score;
+- reject unrelated questions whose best result is below the relevance threshold.
+
+Model inference and application storage remain local. The first model setup may require an internet connection to download runtime and model artifacts.
+
 ## Additional diagnostic scripts
 
 - `app.py` verifies basic streaming chat completion with a small Foundry Local model and a fixed example prompt.
@@ -142,7 +168,9 @@ local-rag-assistant/
 ├── app/
 │   ├── chunk_pdf.py               # PDF chunking diagnostic
 │   ├── embed_chunks.py            # Generate and store chunk embeddings
-│   ├── ingest.py                  # Extract, chunk, and store the configured PDF
+│   ├── web_app.py                  # FastAPI API and local web server
+│   ├── static/                     # Vanilla HTML, CSS, and JavaScript interface
+│   ├── ingest.py                  # Extract, chunk, and store the selected PDF
 │   ├── inspect_foundry.py         # Foundry Local SDK inspection utility
 │   ├── pdf_utils.py               # PDF selection, extraction, and chunking helpers
 │   ├── rag_chat.py                # Single-question end-to-end RAG demo
@@ -155,6 +183,7 @@ local-rag-assistant/
 │       └── .gitkeep               # Placeholder; local PDFs are ignored
 ├── .gitignore
 ├── README.md
+├── run_local_rag.py                # Starts the local browser application
 └── requirements.txt
 ```
 

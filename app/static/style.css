@@ -24,10 +24,11 @@ button { color: inherit; }
 .app-shell { display: grid; grid-template-columns: var(--sidebar) minmax(480px, 1fr) var(--sources); width: 100vw; height: 100vh; }
 .sidebar, .sources-panel { background: var(--panel); min-width: 0; }
 .sidebar { display: flex; flex-direction: column; padding: 18px 14px; border-right: 1px solid var(--border); }
-.brand { display: flex; align-items: center; gap: 11px; padding: 2px 6px 14px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
-.brand-mark { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 9px; background: linear-gradient(145deg, var(--accent-2), #5d50d8); color: #fff; font-size: 14px; box-shadow: 0 6px 20px #6356d738; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 2px 6px 14px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.brand-mark { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .brand strong, .brand small { display: block; }
-.brand strong { font-size: 15px; letter-spacing: -.01em; }
+.brand strong { font-size: 20px; line-height: 1.15; letter-spacing: -.02em; }
 .brand small { color: var(--text-muted); font-size: 10px; margin-top: -1px; }
 
 .nav-section { margin-top: 14px; }
@@ -166,7 +167,7 @@ button { color: inherit; }
 ::-webkit-scrollbar-thumb:hover { background: #3b465c; }
 
 .sources-panel { display: flex; flex-direction: column; padding: 14px; border-left: 1px solid var(--border); overflow-y: auto; background: var(--panel); }
-.settings-nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; margin: 12px 0 18px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); color: var(--text-muted); cursor: pointer; text-align: left; font-size: 12px; }
+.settings-nav-btn { display: flex; align-items: center; gap: 9px; width: 100%; margin: auto 0 0; padding: 9px 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); color: var(--text-muted); cursor: pointer; text-align: left; font-size: 12px; }
 .settings-nav-btn:hover { color: var(--text); border-color: var(--accent); }
 .settings-dialog { width: min(680px, calc(100vw - 32px)); }
 .settings-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 18px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; background: #10141c; }

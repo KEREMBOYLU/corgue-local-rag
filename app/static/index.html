@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <title>Local RAG</title>
+  <title>Corgue</title>
   <link rel="stylesheet" href="/static/fontawesome/css/all.min.css">
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -12,11 +12,9 @@
   <div class="app-shell">
     <aside class="sidebar">
       <header class="brand">
-        <span class="brand-mark"><i class="fa-solid fa-brain"></i></span>
-        <div><strong>Local RAG</strong><small>Offline knowledge assistant</small></div>
+        <span class="brand-mark" aria-hidden="true"><img src="/static/corgue-symbol.svg" alt=""></span>
+        <div class="brand-copy"><strong>Corgue</strong><small>Offline knowledge assistant</small></div>
       </header>
-      <button id="settings-btn" class="settings-nav-btn" type="button"><i class="fa-solid fa-gear"></i><span>Ayarlar</span></button>
-
       <!-- Projeler (Projects) Collapsible Section -->
       <section class="nav-section projects-section">
         <div class="section-heading-row">
@@ -49,6 +47,8 @@
           <div id="conversation-list" class="conversation-list"></div>
         </div>
       </section>
+
+      <button id="settings-btn" class="settings-nav-btn" type="button"><i class="fa-solid fa-gear"></i><span>Ayarlar</span></button>
     </aside>
 
     <main class="chat-panel">

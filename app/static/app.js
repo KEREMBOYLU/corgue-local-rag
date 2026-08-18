@@ -589,7 +589,6 @@ function updateContextInspector(info) {
   const modelNameEl = $("#inspector-model-name");
   const tokenCountEl = $("#inspector-token-count");
   const meterBarEl = $("#context-meter-bar");
-  const systemPromptEl = $("#inspector-system-prompt");
   const chunksListEl = $("#inspector-chunks-list");
   const historyInfoEl = $("#inspector-history-info");
 
@@ -599,8 +598,6 @@ function updateContextInspector(info) {
   const pct = Math.min(100, Math.round((info.tokens / info.max_tokens) * 100));
   if (tokenCountEl) tokenCountEl.textContent = `~${info.tokens.toLocaleString()} / ${info.max_tokens.toLocaleString()} Token (%${pct})`;
   if (meterBarEl) meterBarEl.style.width = `${Math.max(2, pct)}%`;
-  if (systemPromptEl) systemPromptEl.textContent = info.system_prompt || "";
-
   if (chunksListEl) {
     if (!info.chunks || !info.chunks.length) {
       chunksListEl.innerHTML = `<div class="source-empty"><span><i class="fa-regular fa-lightbulb"></i></span><p>Doğrudan eşleşen parça bulunamadı (Geçmiş sohbet bağlamından yanıtlanıyor).</p></div>`;

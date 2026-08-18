@@ -254,7 +254,7 @@ button { color: inherit; }
 .inspector-section { display: flex; flex-direction: column; gap: 6px; }
 .inspector-section-title { color: #94a3b8; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; display: flex; align-items: center; gap: 6px; }
 .inspector-section-title i { color: var(--accent-2); }
-.inspector-code-box, .inspector-history-box { padding: 8px 10px; background: #0f131a; border: 1px solid #232b3a; border-radius: 8px; font-size: 11px; color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.45; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 120px; overflow-y: auto; }
+.inspector-history-box { padding: 8px 10px; background: #0f131a; border: 1px solid #232b3a; border-radius: 8px; font-size: 11px; color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; line-height: 1.45; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 120px; overflow-y: auto; }
 .inspector-chunks-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
 .inspector-chunk-card { padding: 8px 10px; background: #151a24; border: 1px solid #283142; border-radius: 8px; }
 .inspector-chunk-card header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; font-size: 10px; color: var(--text-muted); }

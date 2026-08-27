@@ -7,20 +7,20 @@ def select_pdf_path(provided_path: str | None) -> Path:
     raw_path = provided_path
 
     if raw_path is None:
-        raw_path = input("PDF dosyasının yolunu girin: ").strip()
+        raw_path = input("Enter the PDF path: ").strip()
 
     raw_path = raw_path.strip().strip('"').strip("'")
 
     if not raw_path:
-        raise ValueError("PDF yolu boş bırakılamaz.")
+        raise ValueError("The PDF path cannot be empty.")
 
     pdf_path = Path(raw_path).expanduser().resolve()
 
     if pdf_path.suffix.lower() != ".pdf":
-        raise ValueError(f"Seçilen dosya PDF değil: {pdf_path}")
+        raise ValueError(f"The selected file is not a PDF: {pdf_path}")
 
     if not pdf_path.is_file():
-        raise ValueError(f"PDF bulunamadı: {pdf_path}")
+        raise ValueError(f"PDF not found: {pdf_path}")
 
     return pdf_path
 
@@ -38,10 +38,10 @@ def read_pdf_text(pdf_path: Path) -> str:
 
 def chunk_text(text: str, chunk_size: int = 900, overlap: int = 150) -> list[str]:
     if chunk_size <= 0:
-        raise ValueError("chunk_size sıfırdan büyük olmalıdır.")
+        raise ValueError("chunk_size must be greater than zero.")
 
     if overlap < 0 or overlap >= chunk_size:
-        raise ValueError("overlap sıfırdan küçük olamaz ve chunk_size'dan küçük olmalıdır.")
+        raise ValueError("overlap cannot be negative and must be smaller than chunk_size.")
 
     chunks = []
     start = 0
@@ -67,4 +67,3 @@ def calculate_file_hash(pdf_path: Path) -> str:
             sha256.update(block)
 
     return sha256.hexdigest()
-

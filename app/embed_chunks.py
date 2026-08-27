@@ -57,7 +57,7 @@ def save_embedding(chunk_id: int, embedding: list[float]):
 
 def main():
     if not DB_PATH.exists():
-        print(f"Database bulunamadı: {DB_PATH}")
+        print(f"Database not found: {DB_PATH}")
         return
 
     add_embedding_column_if_needed()
@@ -65,44 +65,44 @@ def main():
     chunks = get_chunks_without_embeddings()
 
     if not chunks:
-        print("Embedding üretilecek chunk yok. Hepsi zaten dolu.")
+        print("There are no chunks waiting for embeddings.")
         return
 
-    print(f"Embedding üretilecek chunk sayısı: {len(chunks)}")
+    print(f"Chunks to embed: {len(chunks)}")
 
-    print("Foundry Local başlatılıyor...")
+    print("Starting Foundry Local...")
     if FoundryLocalManager.instance is None:
         config = Configuration(app_name="embed_chunks")
         FoundryLocalManager.initialize(config)
 
     manager = FoundryLocalManager.instance
 
-    print("Execution providers hazırlanıyor...")
+    print("Preparing execution providers...")
     manager.download_and_register_eps()
 
-    print("Embedding modeli alınıyor...")
+    print("Getting the embedding model...")
     model = manager.catalog.get_model(EMBEDDING_MODEL_ALIAS)
 
     print("Model indiriliyor...")
     model.download()
 
-    print("Model yükleniyor...")
+    print("Loading model...")
     model.load()
 
     embedding_client = model.get_embedding_client()
 
     for index, (chunk_id, chunk_text) in enumerate(chunks, start=1):
-        print(f"[{index}/{len(chunks)}] Chunk {chunk_id} embedding üretiliyor...")
+        print(f"[{index}/{len(chunks)}] Creating an embedding for chunk {chunk_id}...")
 
         response = embedding_client.generate_embedding(chunk_text)
         embedding = response.data[0].embedding
 
         save_embedding(chunk_id, embedding)
 
-    print("Model kapatılıyor...")
+    print("Unloading model...")
     model.unload()
 
-    print("\nTüm chunk embedding'leri kaydedildi.")
+    print("\nAll chunk embeddings were saved.")
 
 
 if __name__ == "__main__":

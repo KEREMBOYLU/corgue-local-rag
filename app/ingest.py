@@ -6,7 +6,7 @@ from pdf_utils import calculate_file_hash, chunk_text, read_pdf_text, select_pdf
 
 
 DB_PATH = Path("rag.db")
-DEFAULT_PROJECT_NAME = "Genel Proje"
+DEFAULT_PROJECT_NAME = "General Project"
 
 
 def get_db_connection():
@@ -34,14 +34,22 @@ def create_database():
     """)
 
     # Ensure default project exists
-    cursor.execute("SELECT id FROM projects WHERE name = ?", (DEFAULT_PROJECT_NAME,))
+    cursor.execute(
+        "SELECT id, name FROM projects WHERE name IN (?, ?) ORDER BY CASE WHEN name = ? THEN 0 ELSE 1 END LIMIT 1",
+        (DEFAULT_PROJECT_NAME, "Genel Proje", DEFAULT_PROJECT_NAME),
+    )
     row = cursor.fetchone()
     if row:
         default_project_id = row[0]
+        if row[1] == "Genel Proje":
+            cursor.execute(
+                "UPDATE projects SET name = ?, description = ? WHERE id = ?",
+                (DEFAULT_PROJECT_NAME, "Default workspace", default_project_id),
+            )
     else:
         cursor.execute(
             "INSERT INTO projects (name, description) VALUES (?, ?)",
-            (DEFAULT_PROJECT_NAME, "Varsayılan çalışma alanı"),
+            (DEFAULT_PROJECT_NAME, "Default workspace"),
         )
         default_project_id = cursor.lastrowid
 
@@ -171,14 +179,14 @@ def get_or_create_default_project() -> dict:
     conn.close()
     if row:
         return {"id": row[0], "name": row[1], "description": row[2], "created_at": row[3]}
-    return create_project(DEFAULT_PROJECT_NAME, "Varsayılan çalışma alanı")
+    return create_project(DEFAULT_PROJECT_NAME, "Default workspace")
 
 
 def create_project(name: str, description: str = "") -> dict:
     create_database()
     name = (name or "").strip()
     if not name:
-        raise ValueError("Proje adı boş olamaz.")
+        raise ValueError("The project name cannot be empty.")
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -191,7 +199,7 @@ def create_project(name: str, description: str = "") -> dict:
         conn.commit()
         return {"id": project_id, "name": name, "description": description}
     except sqlite3.IntegrityError:
-        raise ValueError(f"'{name}' isimli bir proje zaten mevcut.")
+        raise ValueError(f"A project named '{name}' already exists.")
     finally:
         conn.close()
 
@@ -254,7 +262,7 @@ def delete_project(project_id: int) -> bool:
     cursor.execute("SELECT COUNT(*) FROM projects")
     if cursor.fetchone()[0] <= 1:
         conn.close()
-        raise ValueError("Son kalan projeyi silemezsiniz.")
+        raise ValueError("You cannot delete the last remaining project.")
 
     cursor.execute("SELECT id FROM projects WHERE id = ?", (project_id,))
     if not cursor.fetchone():
@@ -430,7 +438,7 @@ def delete_document(document_id: int) -> bool:
 # Conversation & Message CRUD Operations
 # ==========================================
 
-def create_conversation(project_id: int, title: str = "Yeni Sohbet") -> dict:
+def create_conversation(project_id: int, title: str = "New Chat") -> dict:
     create_database()
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -602,7 +610,7 @@ def clear_conversation_messages(conv_id: int) -> bool:
 # ==========================================
 
 def clear_old_chunks():
-    """Tüm veritabanını temizler."""
+    """Clear all document, chunk, conversation, and message data."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM messages")
@@ -615,34 +623,34 @@ def clear_old_chunks():
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="PDF belgelerini okuyup chunk'larını yerel RAG veritabanına kaydeder."
+        description="Read PDF documents and store their chunks in the local RAG database."
     )
     parser.add_argument(
         "pdf",
         nargs="?",
-        help="İşlenecek PDF'in yolu. Verilmezse interaktif olarak sorulur.",
+        help="Path to the PDF to process. Prompts interactively when omitted.",
     )
     parser.add_argument(
         "--project",
         type=str,
         default=None,
-        help="Belgenin ekleneceği proje adı.",
+        help="Name of the project that will receive the document.",
     )
     parser.add_argument(
         "--list",
         action="store_true",
-        help="Koleksiyondaki mevcut projeleri ve belgeleri listeler.",
+        help="List existing projects and documents.",
     )
     parser.add_argument(
         "--delete",
         type=int,
         metavar="DOC_ID",
-        help="Koleksiyondan silinecek belgenin ID'si.",
+        help="ID of the document to delete from the collection.",
     )
     parser.add_argument(
         "--clear",
         action="store_true",
-        help="Tüm koleksiyonu ve chunk'ları sıfırlar.",
+        help="Clear the entire collection and all chunks.",
     )
     return parser.parse_args()
 
@@ -654,34 +662,34 @@ def main():
     if args.list:
         projects = list_projects()
         print("\n" + "=" * 70)
-        print("📁 MEVCUT PROJELER VE ÇALIŞMA ALANLARI")
+        print("📁 PROJECTS AND WORKSPACES")
         print("=" * 70)
         for p in projects:
-            print(f"\n📂 Proje: {p['name']} (ID: {p['id']}) - {p['doc_count']} Belge, {p['chunk_count']} Chunk, {p['conv_count']} Sohbet")
+            print(f"\n📂 Project: {p['name']} (ID: {p['id']}) - {p['doc_count']} documents, {p['chunk_count']} chunks, {p['conv_count']} chats")
             docs = list_documents(project_id=p["id"])
             if docs:
                 for doc in docs:
                     print(f"   └── 📄 {doc['filename']} (ID: {doc['id']} · {doc['chunk_count']} chunk)")
             else:
-                print("   └── (Henüz belge eklenmemiş)")
+                print("   └── (No documents added yet)")
         print("\n" + "=" * 70)
         return
 
     if args.delete is not None:
         success = delete_document(args.delete)
         if success:
-            print(f"Belge (ID: {args.delete}) başarıyla silindi.")
+            print(f"Document (ID: {args.delete}) was deleted.")
         else:
-            print(f"Belge bulunamadı: ID {args.delete}")
+            print(f"Document not found: ID {args.delete}")
         return
 
     if args.clear:
-        confirm = input("Tüm belgeleri ve veritabanını temizlemek istediğinize emin misiniz? (e/h): ").strip().lower()
-        if confirm == "e":
+        confirm = input("Clear all documents and database content? (y/n): ").strip().lower()
+        if confirm == "y":
             clear_old_chunks()
-            print("Veritabanı tamamen sıfırlandı.")
+            print("The database was cleared.")
         else:
-            print("İşlem iptal edildi.")
+            print("Operation cancelled.")
         return
 
     # Ingest interactive or argument
@@ -704,10 +712,10 @@ def main():
     file_hash = calculate_file_hash(pdf_path)
     existing_doc = get_document_by_hash(file_hash, project_id=target_proj["id"])
     if existing_doc:
-        print(f"\n[UYARI] Bu dosya ('{existing_doc['filename']}') zaten '{target_proj['name']}' projesinde mevcut.")
+        print(f"\n[WARNING] This file ('{existing_doc['filename']}') already exists in '{target_proj['name']}'.")
         return
 
-    print(f"PDF okunuyor ({pdf_path.name})...")
+    print(f"Reading PDF ({pdf_path.name})...")
     text = read_pdf_text(pdf_path)
     chunks = chunk_text(text)
 
@@ -719,11 +727,11 @@ def main():
         project_id=target_proj["id"],
     )
 
-    print("\nIngestion tamamlandı.")
-    print(f"Hedef Proje: {target_proj['name']} (ID: {target_proj['id']})")
-    print(f"Belge ID: {doc_id} | {pdf_path.name}")
-    print(f"Chunk Sayısı: {len(chunks)}")
-    print(f"Embedding oluşturmak için Gradio arayüzünü kullanabilir veya `python app/embed_chunks.py` çalıştırabilirsiniz.")
+    print("\nIngestion completed.")
+    print(f"Target project: {target_proj['name']} (ID: {target_proj['id']})")
+    print(f"Document ID: {doc_id} | {pdf_path.name}")
+    print(f"Chunk count: {len(chunks)}")
+    print("Use the web interface or run `python app/embed_chunks.py` to create embeddings.")
 
 
 if __name__ == "__main__":

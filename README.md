@@ -1,8 +1,19 @@
-# Local RAG Assistant
+# Corgue
 
-A local retrieval-augmented generation (RAG) application built with Python, FastAPI, vanilla HTML/CSS/JavaScript, Microsoft Foundry Local, SQLite, and PDF documents. It extracts and chunks PDFs, generates local embeddings, retrieves relevant chunks with cosine similarity, and streams source-grounded answers from a local chat model.
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-6f61e8?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-6f61e8?style=flat-square&logo=fastapi&logoColor=white)
+![Foundry Local](https://img.shields.io/badge/Runtime-Foundry_Local-6f61e8?style=flat-square&logo=microsoft&logoColor=white)
+![SQLite](https://img.shields.io/badge/Storage-SQLite-6f61e8?style=flat-square&logo=sqlite&logoColor=white)
+![RAG](https://img.shields.io/badge/Architecture-RAG-6f61e8?style=flat-square)
+![On-device data](https://img.shields.io/badge/Data-On--device-6f61e8?style=flat-square&logo=shield&logoColor=white)
+
+Corgue is a local retrieval-augmented generation (RAG) application built with Python, FastAPI, vanilla HTML/CSS/JavaScript, Microsoft Foundry Local, SQLite, and PDF documents. It extracts and chunks PDFs, generates local embeddings, retrieves relevant chunks with cosine similarity, and streams source-grounded answers from a local chat model.
 
 The application and its data remain on the local machine. FastAPI serves the browser interface on `127.0.0.1`; no hosted service is required.
+
+## Application preview
+
+![Corgue local RAG workspace](docs/images/corgue-workspace.png)
 
 ## How the RAG pipeline works
 
@@ -68,7 +79,7 @@ python app/ingest.py
 ```
 
 ```text
-PDF dosyasının yolunu girin: /path/to/your/document.pdf
+Enter the PDF path: /path/to/your/document.pdf
 ```
 
 Do not publish private, copyrighted, or course material without permission. The empty `data/documents/` directory remains only as an optional local workspace placeholder.
@@ -132,7 +143,7 @@ This retrieves one chunk, builds a context-only prompt, and streams the local ch
 python app/rag_cli.py
 ```
 
-Enter questions at the `Soru:` prompt. Enter `exit`, `quit`, or `q` to unload the models and stop the program.
+Enter questions at the `Question:` prompt. Enter `exit`, `quit`, or `q` to unload the models and stop the program.
 
 ## Run the local web interface
 
@@ -144,11 +155,14 @@ python run_local_rag.py
 
 Then open [http://127.0.0.1:7860](http://127.0.0.1:7860). The interface lets you:
 
-- upload a PDF from your computer;
-- extract, chunk, embed, and store the selected document in SQLite;
-- ask free-form questions without hardcoded prompts;
-- see the retrieved source filename, chunk index, and similarity score;
-- reject unrelated questions whose best result is below the relevance threshold.
+- organize documents and chats into separate projects;
+- upload one or more PDFs from your computer;
+- extract, chunk, embed, and store documents in SQLite;
+- ask free-form questions and receive streamed Markdown answers;
+- inspect retrieved sources, similarity scores, and context usage;
+- download and switch between compatible Foundry Local chat models;
+- manage the persistent system prompt from Settings;
+- switch the interface between English and Turkish. English is the default, and the choice is remembered on the device.
 
 Model inference and application storage remain local. The first model setup may require an internet connection to download runtime and model artifacts.
 
@@ -182,6 +196,7 @@ local-rag-assistant/
 │   └── documents/
 │       └── .gitkeep               # Placeholder; local PDFs are ignored
 ├── .gitignore
+├── LOCAL_RAG_SYSTEM_ANALYSIS.md     # Detailed architecture and implementation notes
 ├── README.md
 ├── run_local_rag.py                # Starts the local browser application
 └── requirements.txt
@@ -189,12 +204,21 @@ local-rag-assistant/
 
 Generated and machine-local files such as `.venv/`, `rag.db`, PDFs, Python caches, secrets, and model caches are excluded from version control.
 
+## Tests
+
+Run the automated settings and localization tests from the repository root:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 ## Current status and limitations
 
-- Functional prototype composed of standalone scripts.
-- Demonstration questions, model aliases, chunk size, overlap, retrieval threshold, and retrieval count are constants in the scripts rather than configuration options.
-- Ingestion accepts a PDF path or prompts for one, but replaces all existing chunks and currently processes one PDF at a time.
+- Corgue is designed for small and medium-sized local document collections.
+- Model aliases, chunk size, overlap, retrieval threshold, and retrieval count are currently code-level constants.
 - Chunking uses character boundaries and may split sentences or page markers.
-- Embeddings are stored as JSON text, and retrieval performs an in-memory linear scan.
-- Retrieval currently supplies one top-ranked chunk to the chat model in the RAG flows.
-- There is no automated test suite, package entry point, configuration file, conversation memory, or citation validation.
+- Embeddings are stored as JSON text in SQLite, and retrieval performs an in-memory linear scan.
+- The active web flow retrieves up to four chunks for normal questions and up to eight chunks for recognized overview requests.
+- Conversation history uses a sliding window of the latest six messages.
+- There is no dedicated vector database, OCR pipeline, user authentication, or citation-content validation.
+- A specialized vector database and semantic chunking strategy would be more suitable for substantially larger collections.

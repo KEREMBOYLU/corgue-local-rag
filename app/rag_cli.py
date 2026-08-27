@@ -171,7 +171,7 @@ def build_context(chunks):
 
     for chunk in chunks:
         context_parts.append(
-            f"--- [Belge: {chunk['source']} | Parça: #{chunk['chunk_index']} | Benzerlik Skoru: {chunk['score']:.4f}] ---\n"
+            f"--- [Document: {chunk['source']} | Chunk: #{chunk['chunk_index']} | Similarity Score: {chunk['score']:.4f}] ---\n"
             f"{chunk['chunk_text']}"
         )
 
@@ -196,7 +196,7 @@ def build_messages_with_context(
     for msg in history:
         content = (msg.get("content") or "").strip()
         role = msg.get("role")
-        if content and role in ("user", "assistant") and content != "Yanıt hazırlanıyor…":
+        if content and role in ("user", "assistant") and content not in ("Preparing response…", "Yanıt hazırlanıyor…"):
             valid_history.append({"role": role, "content": content})
 
     # Take last N turns for sliding window
@@ -228,7 +228,7 @@ def answer_question(chunks, embedding_client, chat_client, question: str):
     )
 
     if not top_chunks:
-        message = "Bu sorunun cevabını belgelerde bulamadım."
+        message = "I could not find the answer to this question in the documents."
         print(message)
         return message, []
 
@@ -241,7 +241,7 @@ def answer_question(chunks, embedding_client, chat_client, question: str):
         current_question=question,
     )
 
-    print("\nAssistant cevabı:")
+    print("\nAssistant response:")
     print("-" * 50)
 
     answer_parts = []
@@ -254,9 +254,9 @@ def answer_question(chunks, embedding_client, chat_client, question: str):
             answer_parts.append(delta)
 
     print("\n" + "-" * 50)
-    print("\nKullanılan Kaynaklar:")
+    print("\nSources used:")
     for c in top_chunks:
-        print(f"- {c['source']} (Parça #{c['chunk_index']}, Skor: {c['score']:.4f})")
+        print(f"- {c['source']} (Chunk #{c['chunk_index']}, score: {c['score']:.4f})")
 
     return "".join(answer_parts), top_chunks
 
@@ -268,15 +268,15 @@ def main():
 
     chunks = load_chunks_with_embeddings()
     if not chunks:
-        print("Kayıtlı ve embedding üretilmiş chunk bulunamadı.")
+        print("No stored chunks with embeddings were found.")
         return
 
-    print(f"Hazır! Toplam {len(chunks)} chunk yüklendi.")
-    print("Çıkmak için 'q' veya 'exit' yazın.\n")
+    print(f"Ready! Loaded {len(chunks)} chunks.")
+    print("Enter 'q' or 'exit' to quit.\n")
 
     while True:
         try:
-            q = input("\nSoru: ").strip()
+            q = input("\nQuestion: ").strip()
             if not q:
                 continue
             if q.lower() in ("q", "exit", "quit"):

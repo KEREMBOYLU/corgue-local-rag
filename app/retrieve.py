@@ -86,11 +86,11 @@ def retrieve_top_chunks(
     chunks = load_chunks_with_embeddings()
 
     if not chunks:
-        print("Embedding içeren chunk bulunamadı.")
+        print("No chunks with embeddings were found.")
         return []
 
     print(f"Toplam embedding'li chunk: {len(chunks)}")
-    print("Soru embedding'e çevriliyor...")
+    print("Converting the question to an embedding...")
 
     query_embedding = get_query_embedding(query)
 
@@ -116,17 +116,17 @@ def retrieve_top_chunks(
 def main():
     query = "What are primitive data types?"
 
-    print(f"Soru: {query}\n")
+    print(f"Question: {query}\n")
 
     results = retrieve_top_chunks(query, top_k=3)
 
     if not results:
         print(
-            f"\n{MIN_SIMILARITY_SCORE:.2f} eşiğini geçen ilgili bir chunk bulunamadı."
+            f"\nNo relevant chunk passed the {MIN_SIMILARITY_SCORE:.2f} threshold."
         )
         return
 
-    print("\nEn alakalı chunk'lar:\n")
+    print("\nMost relevant chunks:\n")
 
     for result in results:
         print("=" * 80)

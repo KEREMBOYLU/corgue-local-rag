@@ -62,7 +62,7 @@ def get_system_prompt() -> str:
 def save_system_prompt(prompt: str) -> str:
     value = (prompt or "").strip()
     if not value:
-        raise ValueError("System Prompt boş olamaz.")
+        raise ValueError("System Prompt cannot be empty.")
     ensure_settings_table()
     conn = _connection()
     conn.execute(

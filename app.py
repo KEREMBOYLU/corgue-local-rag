@@ -9,29 +9,29 @@ from settings import get_system_prompt
 def main():
     alias = "qwen2.5-0.5b"
 
-    print("Foundry Local başlatılıyor...")
+    print("Starting Foundry Local...")
 
     config = Configuration(app_name="local_rag_test")
     FoundryLocalManager.initialize(config)
 
     manager = FoundryLocalManager.instance
 
-    print("Execution providers hazırlanıyor...")
+    print("Preparing execution providers...")
     manager.download_and_register_eps()
 
-    print("Model bilgisi alınıyor...")
+    print("Reading model information...")
     model = manager.catalog.get_model(alias)
 
-    print("Model indiriliyor...")
+    print("Downloading model...")
     model.download()
 
-    print("Model yükleniyor...")
+    print("Loading model...")
     model.load()
 
-    print("Client hazırlanıyor...")
+    print("Preparing client...")
     client = model.get_chat_client()
 
-    print("\nAssistant cevabı:\n")
+    print("\nAssistant response:\n")
 
     messages = [
         {
@@ -57,7 +57,7 @@ def main():
         if content:
             print(content, end="", flush=True)
 
-    print("\n\nModel kapatılıyor...")
+    print("\n\nUnloading model...")
     model.unload()
 
 

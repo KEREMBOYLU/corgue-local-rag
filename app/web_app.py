@@ -31,34 +31,37 @@ from settings import get_saved_system_prompt, get_system_prompt, reset_system_pr
 
 
 STATIC_DIR = Path(__file__).parent / "static"
-FALLBACK_MESSAGE = "Bu sorunun cevabını projedeki belgelerde bulamadım."
+FALLBACK_MESSAGES = {
+    "en": "I could not find the answer to this question in the project documents.",
+    "tr": "Bu sorunun cevabını projedeki belgelerde bulamadım.",
+}
 AVAILABLE_MODELS = [
     {
         "id": "qwen2.5-1.5b",
         "name": "Qwen 2.5 1.5B",
-        "tag": "Hızlı & Hafif",
-        "desc": "Varsayılan yerel model (Düşük RAM, anlık)",
+        "tag": "Fast & Lightweight",
+        "desc": "Default local model (low memory use, quick responses)",
         "downloaded": True,
     },
     {
         "id": "qwen2.5-7b",
         "name": "Qwen 2.5 7B",
-        "tag": "Güçlü & Detaylı",
-        "desc": "Yüksek kavrayış ve detaylı analiz",
+        "tag": "Powerful & Detailed",
+        "desc": "Stronger comprehension and detailed analysis",
         "downloaded": False,
     },
     {
         "id": "llama3.2-3b",
         "name": "Llama 3.2 3B",
         "tag": "Meta Llama",
-        "desc": "Kompakt ve dengeli yerel model",
+        "desc": "Compact and balanced local model",
         "downloaded": False,
     },
     {
         "id": "deepseek-r1-distill-qwen-1.5b",
         "name": "DeepSeek R1 1.5B",
-        "tag": "Akıl Yürütme",
-        "desc": "Adım adım mantık ve düşünme",
+        "tag": "Reasoning",
+        "desc": "Step-by-step reasoning",
         "downloaded": False,
     },
 ]
@@ -71,7 +74,7 @@ class ProjectInput(BaseModel):
 
 class ConversationInput(BaseModel):
     project_id: int
-    title: str = "Yeni Sohbet"
+    title: str = "New Chat"
 
 
 class ChatInput(BaseModel):
@@ -79,6 +82,7 @@ class ChatInput(BaseModel):
     conversation_id: int
     question: str
     model_alias: str = "qwen2.5-1.5b"
+    language: str = "en"
 
 
 class SystemPromptInput(BaseModel):
@@ -133,7 +137,7 @@ engine = LocalRAGEngine()
 model_downloads: dict[str, dict] = {}
 model_metadata: dict[str, dict] = {}
 chat_stop_events: dict[int, threading.Event] = {}
-app = FastAPI(title="Local RAG")
+app = FastAPI(title="Corgue")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 atexit.register(engine.close)
 
@@ -198,7 +202,7 @@ def get_models() -> list[dict]:
                     "id": alias,
                     "name": alias,
                     "tag": "Foundry Local",
-                    "desc": "Katalogdan indirildi",
+                    "desc": "Downloaded from the catalog",
                     "downloaded": True,
                     "cached": True,
                     "downloading": False,
@@ -214,28 +218,28 @@ def get_models() -> list[dict]:
 
 def _model_alias_or_404(model_alias: str) -> str:
     if not any(item["id"] == model_alias for item in AVAILABLE_MODELS):
-        raise HTTPException(status_code=404, detail="Model bulunamadı.")
+        raise HTTPException(status_code=404, detail="Model not found.")
     return model_alias
 
 
 def _get_model(model_alias: str):
     alias = model_alias.strip()
     if not alias:
-        raise HTTPException(status_code=404, detail="Model bulunamadı.")
+        raise HTTPException(status_code=404, detail="Model not found.")
     try:
         if engine.manager is None:
             engine.manager = get_foundry_manager()
         model = engine.manager.catalog.get_model(alias)
         if model is None:
-            raise HTTPException(status_code=404, detail="Bu model Foundry Local kataloğunda bulunamadı.")
+            raise HTTPException(status_code=404, detail="This model was not found in the Foundry Local catalog.")
         info = getattr(getattr(model, "_selected_variant", None), "_model_info", None)
         if info is None or info.task != "chat-completion":
-            raise HTTPException(status_code=400, detail="Bu model sohbet modeli değil.")
+            raise HTTPException(status_code=400, detail="This model is not a chat model.")
         return alias, model
     except HTTPException:
         raise
     except Exception as error:
-        raise HTTPException(status_code=500, detail=f"Model kataloğu okunamadı: {error}") from error
+        raise HTTPException(status_code=500, detail=f"The model catalog could not be read: {error}") from error
 
 
 @app.get("/api/models/catalog")
@@ -274,7 +278,7 @@ def get_catalog_models() -> list[dict]:
             })
         return sorted(models, key=lambda item: item["name"].lower())
     except Exception as error:
-        raise HTTPException(status_code=500, detail=f"Model kataloğu okunamadı: {error}") from error
+        raise HTTPException(status_code=500, detail=f"The model catalog could not be read: {error}") from error
 
 
 @app.post("/api/models/{model_alias}/prepare")
@@ -282,13 +286,13 @@ def prepare_model(model_alias: str) -> dict:
     alias, model = _get_model(model_alias)
     info = getattr(getattr(model, "_selected_variant", None), "_model_info", None)
     if info is None or info.task != "chat-completion":
-        raise HTTPException(status_code=400, detail="Bu model sohbet modeli değil.")
+        raise HTTPException(status_code=400, detail="This model is not a chat model.")
     try:
         engine.ensure_models(chat_alias=alias)
         model = engine.manager.catalog.get_model(alias)
         return {"id": alias, "downloaded": model.is_cached, "loaded": model.is_loaded}
     except Exception as error:
-        raise HTTPException(status_code=500, detail=f"Model hazırlanamadı: {error}") from error
+        raise HTTPException(status_code=500, detail=f"The model could not be prepared: {error}") from error
 
 
 @app.post("/api/models/{model_alias}/download")
@@ -326,7 +330,7 @@ def download_model(model_alias: str) -> StreamingResponse:
             events.put(None)
 
     def stream():
-        yield ndjson({"type": "status", "message": "Model indiriliyor…"})
+        yield ndjson({"type": "status", "message": "Downloading model…"})
         if already_downloading:
             while model_downloads.get(alias, {}).get("downloading"):
                 yield ndjson({"type": "progress", "progress": model_downloads.get(alias, {}).get("progress", 0)})
@@ -375,10 +379,10 @@ def restore_system_prompt() -> dict:
 
 def workspace_payload(project_id: int, conversation_id: int | None = None) -> dict:
     if get_project_by_id(project_id) is None:
-        raise HTTPException(status_code=404, detail="Çalışma alanı bulunamadı.")
+        raise HTTPException(status_code=404, detail="Workspace not found.")
     conversations = list_conversations(project_id)
     if not conversations:
-        conversations = [create_conversation(project_id, "Yeni Sohbet")]
+        conversations = [create_conversation(project_id, "New Chat")]
     if conversation_id is None or not any(c["id"] == conversation_id for c in conversations):
         conversation_id = conversations[0]["id"]
     return {
@@ -422,7 +426,7 @@ def add_project(payload: ProjectInput) -> dict:
         project = create_project(payload.name, payload.description)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    conversation = create_conversation(project["id"], "Yeni Sohbet")
+    conversation = create_conversation(project["id"], "New Chat")
     return workspace_payload(project["id"], conversation["id"])
 
 
@@ -430,7 +434,7 @@ def add_project(payload: ProjectInput) -> dict:
 def remove_project(project_id: int) -> dict:
     try:
         if not delete_project(project_id):
-            raise HTTPException(status_code=404, detail="Çalışma alanı bulunamadı.")
+            raise HTTPException(status_code=404, detail="Workspace not found.")
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     fallback = get_or_create_default_project()
@@ -440,7 +444,7 @@ def remove_project(project_id: int) -> dict:
 @app.post("/api/conversations")
 def add_conversation(payload: ConversationInput) -> dict:
     if get_project_by_id(payload.project_id) is None:
-        raise HTTPException(status_code=404, detail="Çalışma alanı bulunamadı.")
+        raise HTTPException(status_code=404, detail="Workspace not found.")
     conversation = create_conversation(payload.project_id, payload.title)
     return workspace_payload(payload.project_id, conversation["id"])
 
@@ -449,7 +453,7 @@ def add_conversation(payload: ConversationInput) -> dict:
 def remove_conversation(conversation_id: int) -> dict:
     conversation = get_conversation(conversation_id)
     if conversation is None:
-        raise HTTPException(status_code=404, detail="Sohbet bulunamadı.")
+        raise HTTPException(status_code=404, detail="Chat not found.")
     delete_conversation(conversation_id)
     return workspace_payload(conversation["project_id"])
 
@@ -462,7 +466,7 @@ class RenameInput(BaseModel):
 def rename_conversation(conversation_id: int, payload: RenameInput) -> dict:
     conversation = get_conversation(conversation_id)
     if conversation is None:
-        raise HTTPException(status_code=404, detail="Sohbet bulunamadı.")
+        raise HTTPException(status_code=404, detail="Chat not found.")
     update_conversation_title(conversation_id, payload.title)
     return workspace_payload(conversation["project_id"], conversation_id)
 
@@ -470,25 +474,25 @@ def rename_conversation(conversation_id: int, payload: RenameInput) -> dict:
 @app.post("/api/documents")
 def add_documents(project_id: int = Form(...), files: list[UploadFile] = File(...)) -> dict:
     if get_project_by_id(project_id) is None:
-        raise HTTPException(status_code=404, detail="Çalışma alanı bulunamadı.")
+        raise HTTPException(status_code=404, detail="Workspace not found.")
     added, skipped = [], []
     with tempfile.TemporaryDirectory(prefix="local-rag-upload-") as temp_dir:
         temp_root = Path(temp_dir)
         for upload in files:
             filename = Path(upload.filename or "document.pdf").name
             if not filename.lower().endswith(".pdf"):
-                skipped.append(f"{filename}: PDF değil")
+                skipped.append(f"{filename}: not a PDF")
                 continue
             target = temp_root / filename
             with target.open("wb") as output:
                 shutil.copyfileobj(upload.file, output)
             file_hash = calculate_file_hash(target)
             if get_document_by_hash(file_hash, project_id=project_id):
-                skipped.append(f"{filename}: zaten mevcut")
+                skipped.append(f"{filename}: already exists")
                 continue
             chunks = chunk_text(read_pdf_text(target))
             if not chunks:
-                skipped.append(f"{filename}: okunabilir metin yok")
+                skipped.append(f"{filename}: no readable text")
                 continue
             save_document_and_chunks(
                 filename=filename, chunks=chunks, filepath=filename,
@@ -504,7 +508,7 @@ def add_documents(project_id: int = Form(...), files: list[UploadFile] = File(..
 @app.delete("/api/documents/{document_id}")
 def remove_document(document_id: int, project_id: int) -> dict:
     if not delete_document(document_id):
-        raise HTTPException(status_code=404, detail="Kaynak bulunamadı.")
+        raise HTTPException(status_code=404, detail="Source not found.")
     return workspace_payload(project_id)
 
 
@@ -513,26 +517,37 @@ def chat(payload: ChatInput) -> StreamingResponse:
     question = payload.question.strip()
     conversation = get_conversation(payload.conversation_id)
     if not question:
-        raise HTTPException(status_code=400, detail="Soru boş olamaz.")
+        raise HTTPException(status_code=400, detail="The question cannot be empty.")
     if conversation is None or conversation["project_id"] != payload.project_id:
-        raise HTTPException(status_code=404, detail="Sohbet bulunamadı.")
+        raise HTTPException(status_code=404, detail="Chat not found.")
 
     previous_messages = get_conversation_messages(payload.conversation_id)
     stop_event = threading.Event()
     chat_stop_events[payload.conversation_id] = stop_event
     save_message(payload.conversation_id, "user", question)
-    if conversation["title"] in ("Yeni Sohbet", "İlk Sohbet"):
+    if conversation["title"] in ("Yeni Sohbet", "İlk Sohbet", "New Chat", "First Chat"):
         update_conversation_title(payload.conversation_id, question[:42])
 
     def generate():
         try:
-            yield ndjson({"type": "status", "message": f"Yerel model hazırlanıyor ({payload.model_alias})…"})
+            language = "tr" if payload.language == "tr" else "en"
+            fallback_message = FALLBACK_MESSAGES[language]
+            status_message = (
+                f"Yerel model hazırlanıyor ({payload.model_alias})…"
+                if language == "tr"
+                else f"Preparing local model ({payload.model_alias})…"
+            )
+            yield ndjson({"type": "status", "message": status_message})
             engine.ensure_models(chat_alias=payload.model_alias)
             if stop_event.is_set():
                 return
             chunks = load_chunks_with_embeddings(project_id=payload.project_id)
             if not chunks:
-                answer = "Bu çalışma alanında henüz işlenmiş bir PDF kaynağı yok."
+                answer = (
+                    "Bu çalışma alanında henüz işlenmiş bir PDF kaynağı yok."
+                    if language == "tr"
+                    else "This workspace does not have any processed PDF sources yet."
+                )
                 save_message(payload.conversation_id, "assistant", answer)
                 yield ndjson({"type": "sources", "sources": []})
                 yield ndjson({"type": "done", "answer": answer})
@@ -572,8 +587,8 @@ def chat(payload: ChatInput) -> StreamingResponse:
                 })
 
                 if not top_chunks and not history:
-                    save_message(payload.conversation_id, "assistant", FALLBACK_MESSAGE)
-                    yield ndjson({"type": "done", "answer": FALLBACK_MESSAGE})
+                    save_message(payload.conversation_id, "assistant", fallback_message)
+                    yield ndjson({"type": "done", "answer": fallback_message})
                     return
 
                 messages = build_messages_with_context(
@@ -590,7 +605,7 @@ def chat(payload: ChatInput) -> StreamingResponse:
                     if token:
                         answer_parts.append(token)
                         yield ndjson({"type": "token", "token": token})
-                answer = "".join(answer_parts).strip() or FALLBACK_MESSAGE
+                answer = "".join(answer_parts).strip() or fallback_message
             if stop_event.is_set():
                 if answer_parts:
                     save_message(payload.conversation_id, "assistant", answer, json.dumps(sources, ensure_ascii=False))

@@ -21,9 +21,9 @@ def open_browser():
 
 if __name__ == "__main__":
     print("\n" + "=" * 65)
-    print("🚀 Local RAG Workspace Başlatılıyor...")
-    print("👉 Tarayıcı Adresi: http://127.0.0.1:7860")
-    print("   (Uygulamayı durdurmak için Ctrl + C tuşlayın)")
+    print("🚀 Starting the Corgue workspace...")
+    print("👉 Browser address: http://127.0.0.1:7860")
+    print("   (Press Ctrl+C to stop the application)")
     print("=" * 65 + "\n")
 
     threading.Thread(target=open_browser, daemon=True).start()

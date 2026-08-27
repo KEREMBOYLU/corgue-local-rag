@@ -66,14 +66,14 @@ def get_foundry_manager():
 
     manager = FoundryLocalManager.instance
 
-    print("Execution providers hazırlanıyor...")
+    print("Preparing execution providers...")
     manager.download_and_register_eps()
 
     return manager
 
 
 def get_query_embedding(manager, query: str):
-    print("Embedding modeli yükleniyor...")
+    print("Loading the embedding model...")
 
     model = manager.catalog.get_model(EMBEDDING_MODEL_ALIAS)
     model.download()
@@ -101,7 +101,7 @@ def retrieve_top_chunks(
         return []
 
     print(f"Toplam embedding'li chunk: {len(chunks)}")
-    print("Soru embedding'e çevriliyor...")
+    print("Converting the question to an embedding...")
 
     query_embedding = get_query_embedding(manager, query)
 
@@ -137,18 +137,18 @@ def build_context(chunks):
 
 
 def answer_question(manager, question: str):
-    print("İlgili chunk'lar aranıyor...")
+    print("Searching for relevant chunks...")
 
     top_chunks = retrieve_top_chunks(manager, question, top_k=1)
 
     if not top_chunks:
-        message = "Bu sorunun cevabını belgelerde bulamadım."
+        message = "I could not find the answer to this question in the documents."
         print(message)
         return message, []
 
     context = build_context(top_chunks)
 
-    print("Chat modeli yükleniyor...")
+    print("Loading the chat model...")
 
     chat_model = manager.catalog.get_model(CHAT_MODEL_ALIAS)
     chat_model.download()
@@ -174,7 +174,7 @@ def answer_question(manager, question: str):
         }
     ]
 
-    print("\nAssistant cevabı:\n")
+    print("\nAssistant response:\n")
 
     answer_parts = []
 
@@ -200,12 +200,12 @@ def main():
 
     question = "Define primitive data types according to the context."
 
-    print(f"Soru: {question}\n")
+    print(f"Question: {question}\n")
 
     answer, chunks = answer_question(manager, question)
 
     if chunks:
-        print("\nKullanılan kaynak chunk'lar:\n")
+        print("\nSource chunks used:\n")
 
         for chunk in chunks:
             print(

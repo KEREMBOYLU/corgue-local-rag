@@ -6,6 +6,7 @@
 ![SQLite](https://img.shields.io/badge/Storage-SQLite-6f61e8?style=flat-square&logo=sqlite&logoColor=white)
 ![RAG](https://img.shields.io/badge/Architecture-RAG-6f61e8?style=flat-square)
 ![On-device data](https://img.shields.io/badge/Data-On--device-6f61e8?style=flat-square&logo=shield&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-6f61e8?style=flat-square)](LICENSE)
 
 Corgue is a local retrieval-augmented generation (RAG) application built with Python, FastAPI, vanilla HTML/CSS/JavaScript, Microsoft Foundry Local, SQLite, and PDF documents. It extracts and chunks PDFs, generates local embeddings, retrieves relevant chunks with cosine similarity, and streams source-grounded answers from a local chat model.
 
@@ -222,3 +223,7 @@ python -m unittest discover -s tests -v
 - Conversation history uses a sliding window of the latest six messages.
 - There is no dedicated vector database, OCR pipeline, user authentication, or citation-content validation.
 - A specialized vector database and semantic chunking strategy would be more suitable for substantially larger collections.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
